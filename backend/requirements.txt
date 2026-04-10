@@ -1,0 +1,26 @@
+# === Web Framework ===
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# === Data Validation & Settings ===
+pydantic==2.10.6
+pydantic-settings==2.7.1
+
+# === Database ===
+sqlalchemy==2.0.38
+aiomysql==0.2.0
+alembic==1.14.1
+greenlet==3.1.1
+
+# === Financial Data ===
+yfinance>=1.2.0
+pandas==2.2.3
+numpy==2.2.3
+
+# === HTTP & Utils ===
+httpx==0.28.1
+python-dotenv==1.0.1
+rich==13.9.4
+
+# === Security ===
+python-multipart==0.0.20

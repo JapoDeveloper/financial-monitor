@@ -1,0 +1,63 @@
+services:
+
+  # ─── MariaDB ──────────────────────────────────────────────
+  db:
+    image: mariadb:11.4
+    container_name: fp-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MARIADB_DATABASE: ${DB_NAME:-financial_platform}
+      MARIADB_USER: ${DB_USER:-fp_user}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "3306:3306"
+    volumes:
+      - fp_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── FastAPI Backend ──────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fp-backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-financial_platform}
+      DB_USER: ${DB_USER:-fp_user}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DEFAULT_CURRENCY: ${DEFAULT_CURRENCY:-USD}
+      DEFAULT_BENCHMARK: ${DEFAULT_BENCHMARK:-SPY}
+      RISK_FREE_RATE: ${RISK_FREE_RATE:-0.043}
+      CORS_ORIGINS: '["http://localhost:5173","http://localhost"]'
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  # ─── React Frontend ───────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fp-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  fp_db_data:
+    driver: local
