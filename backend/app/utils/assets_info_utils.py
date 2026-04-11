@@ -256,7 +256,7 @@ def get_asset_thematic_metadata(info):
 
     # Decision tree
     if is_emerging_cat or "emerging markets" in all_text:
-        region_spec = "Global Emerging"
+        region_spec = "Emerging"
     elif "china" in all_text and not "excluding china" in all_text:
         region_spec = "China"
     elif is_us_cat or (is_us_text and not is_foreign and not is_ex_us_text):
