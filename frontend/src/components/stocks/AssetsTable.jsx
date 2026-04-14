@@ -145,7 +145,12 @@ const AssetsTable = ({ assets, onSelectAsset, selectedTicker }) => {
                     </div>
                   </td>
                   <td style={{ textAlign: 'left' }}>
-                    <span className={`status-badge status-badge--neutral`}>
+                    <span className={`status-badge ${
+                      asset.classification === 'Core' ? 'status-badge--core' :
+                      asset.classification === 'Satellite' ? 'status-badge--satellite' :
+                      asset.classification === 'Diversifier' ? 'status-badge--diversifier' :
+                      'status-badge--neutral'
+                    }`}>
                       {asset.classification}
                     </span>
                   </td>

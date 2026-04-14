@@ -22,6 +22,7 @@ class StocksService:
         self.rebalance_service = RebalanceService()
         self.USA_BENCHMARK = 'SPY'
         self.GLOBAL_BENCHMARK = 'VT'
+        self.BOND_BENCHMARK = 'BND'
         self.RISK_FREE_SYMBOL = '^TNX'
 
     async def get_stocks_dashboard(self, user_id: int, macro_regime_override: Optional[str] = None) -> StocksDashboardResponse:
@@ -40,10 +41,10 @@ class StocksService:
             )
 
         my_assets_names = list(df_transacciones['nombre_corto'].unique())
-        all_tickers = list(set(my_assets_names + [self.USA_BENCHMARK, self.GLOBAL_BENCHMARK, self.RISK_FREE_SYMBOL]))
+        all_tickers = list(set(my_assets_names + [self.USA_BENCHMARK, self.GLOBAL_BENCHMARK, self.BOND_BENCHMARK, self.RISK_FREE_SYMBOL]))
         
-        # Download market data (1 year)
-        all_history = yf.download(all_tickers, period="1y", group_by='ticker', progress=False, auto_adjust=True)
+        # Download market data (3 years for robust classification, filtered YTD for performance)
+        all_history = yf.download(all_tickers, period="3y", group_by='ticker', progress=False, auto_adjust=True)
         
         current_year = datetime.now().year
         start_date = pd.Timestamp(f"{current_year}-01-01")
@@ -67,6 +68,7 @@ class StocksService:
         # Benchmarks Returns
         usa_rets = get_px_series(self.USA_BENCHMARK).pct_change(fill_method=None).fillna(0)
         global_rets = get_px_series(self.GLOBAL_BENCHMARK).pct_change(fill_method=None).fillna(0)
+        bond_rets = get_px_series(self.BOND_BENCHMARK).pct_change(fill_method=None).fillna(0)
 
         # Portfolio returns calculation
         market_prices = pd.DataFrame({t: get_px_series(t) for t in my_assets_names}).ffill()
@@ -90,6 +92,7 @@ class StocksService:
         port_ytd_s = port_rets[mask_ytd]
         usa_ytd_s = usa_rets[mask_ytd]
         global_ytd_s = global_rets[mask_ytd]
+        bond_ytd_s = bond_rets[mask_ytd]
 
         # Individual assets YTD
         asset_rets_matrix = ((equity_by_asset - equity_by_asset.shift(1).fillna(0) - net_asset_inflows) / (equity_by_asset.shift(1) + 0.5 * net_asset_inflows).replace(0, np.nan)).fillna(0)
@@ -197,9 +200,10 @@ class StocksService:
             except:
                 thematic = {'focus': 'N/A', 'niche': 'N/A', 'region_spec': 'N/A'}
             
-            # Individual Asset Alpha metrics
-            a_rets = market_rets[ticker][mask_ytd] if ticker in market_rets.columns else pd.Series()
-            a_metrics = calculate_stock_metrics(a_rets, global_ytd_s, risk_free_rate)
+            # Individual Asset Institutional Metrics (3-Year history for Alpha, Beta & Classification robustness)
+            a_rets = market_rets[ticker] if ticker in market_rets.columns else pd.Series()
+            a_metrics = calculate_stock_metrics(a_rets, usa_rets, risk_free_rate) # Cambia usa_rets por global_rets para benchmark global
+            a_bond_metrics = calculate_stock_metrics(a_rets, bond_rets, risk_free_rate)
             
             # Per-asset TWR YTD (Modified Dietz, accounts for cash flows — investor experience)
             a_ytd_twr = float(asset_ytd_rets[ticker]) if ticker in asset_ytd_rets.index and np.isfinite(asset_ytd_rets[ticker]) else 0.0
@@ -209,20 +213,20 @@ class StocksService:
             te = a_metrics.get('tracking_error', 0.0)
             rv = a_metrics.get('rel_vol', 1.0)
             
-            is_core_equity = (0.75 <= rv <= 1.15) and (r2 >= 0.55)
-            is_core_fixed_income = (te < 0.9) and (r2 >= 0.80)
-            is_satellite = (rv >= 1.05) and (te >= 0.03 or r2 < 0.75)
-            is_diversifier = (r2 < 0.55) and (rv < 1.05)
+            r2_bond = a_bond_metrics.get('r_squared', 0.0)
+            te_bond = a_bond_metrics.get('tracking_error', 0.0)
+            
+            is_core_equity = (r2 >= 0.85) and (te <= 0.08) and (0.75 <= rv <= 1.15)
+            is_core_fixed_income = (r2_bond >= 0.70) and (te_bond <= 0.05)
+            is_diversifier = (r2 < 0.40) and (r2_bond < 0.40)
 
-            classification = "N/D"
+            classification = "Satellite"
             if is_core_equity or is_core_fixed_income:
                 classification = "Core"
-            elif is_satellite: 
-                classification = "Satellite"
             elif is_diversifier:
                 classification = "Diversifier"
 
-            logger.info(f"{ticker} ({classification}): R-Squared={r2}, TrackingError={te}, RelativeVolatility={rv}")
+            logger.debug(f"{ticker} ({classification}): R-Squared={r2}, TrackingError={te}, RelativeVolatility={rv}, R-Squared Bond={r2_bond}, TrackingError Bond={te_bond}")
 
             # Current weight
             w = float(curr_weights.get(ticker, 0.0))

@@ -407,6 +407,11 @@ html, body {
   background: #E0E7FF; /* indigo-100 */
 }
 
+.status-badge--diversifier {
+  color: #B45309; /* amber-700 */
+  background: #FEF3C7; /* amber-100 */
+}
+
 /* ─── Form Controls ──────────────────────────── */
 .fm-select, .fm-input {
   width: 100%;
