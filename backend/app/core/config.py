@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     db_name: str = Field(default="financial_platform")
     db_user: str = Field(default="fp_user")
     db_password: str = Field(default="changeme")
+    db_verbose: bool = Field(default=False)
 
     # --- Financial Parameters ---
     default_currency: str = Field(default="USD")

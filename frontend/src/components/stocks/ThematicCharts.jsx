@@ -19,7 +19,7 @@ const ThematicCharts = ({ assets }) => {
     assets.forEach(a => {
       let val;
       if (key === 'strategy') {
-        val = a.classification || 'Satellite';
+        val = a.classification || 'N/A';
       } else {
         val = a.thematic[key] || 'N/A';
       }
@@ -150,12 +150,7 @@ const ThematicCharts = ({ assets }) => {
                 }}
               >
                 {chartData.map((entry, index) => {
-                  let color;
-                  if (activeItem.key === 'strategy') {
-                    color = entry.name === 'Core' ? '#10B981' : '#6366F1';
-                  } else {
-                    color = CHART_PALETTE[index % CHART_PALETTE.length];
-                  }
+                  let color = CHART_PALETTE[index % CHART_PALETTE.length];
                   return <Cell key={`cell-${index}`} fill={color} />;
                 })}
               </Pie>

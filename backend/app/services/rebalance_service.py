@@ -235,7 +235,7 @@ class RebalanceService:
         regime = macro_regime_override if macro_regime_override else self.detect_macro_regime(rf_series, spy_series)
         
         # Calculate daily returns for Covariance
-        returns_df = price_history.pct_change().dropna()
+        returns_df = price_history.pct_change(fill_method=None).dropna()
         cov_matrix = returns_df.cov()
 
         # 2. Optimize Weights via Black-Litterman

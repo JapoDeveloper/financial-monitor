@@ -4,7 +4,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-import logging
+from app.core.logging import logger
 
 from app.db.repositories.legacy_repo import LegacyWimmRepository
 from app.schemas.stocks import (
@@ -15,8 +15,6 @@ from app.schemas.stocks import (
 from app.domain.stocks import calculate_stock_metrics, calculate_weighted_average_price
 from app.utils.assets_info_utils import get_asset_thematic_metadata, get_asset_supports_info, get_asset_price_label
 from app.services.rebalance_service import RebalanceService
-
-logger = logging.getLogger(__name__)
 
 class StocksService:
     def __init__(self, db: AsyncSession):
@@ -67,8 +65,8 @@ class StocksService:
         if np.isnan(risk_free_rate): risk_free_rate = 0.04
 
         # Benchmarks Returns
-        usa_rets = get_px_series(self.USA_BENCHMARK).pct_change().fillna(0)
-        global_rets = get_px_series(self.GLOBAL_BENCHMARK).pct_change().fillna(0)
+        usa_rets = get_px_series(self.USA_BENCHMARK).pct_change(fill_method=None).fillna(0)
+        global_rets = get_px_series(self.GLOBAL_BENCHMARK).pct_change(fill_method=None).fillna(0)
 
         # Portfolio returns calculation
         market_prices = pd.DataFrame({t: get_px_series(t) for t in my_assets_names}).ffill()
@@ -104,7 +102,7 @@ class StocksService:
 
         # Construct market returns and cached YTD early (needed by scorecard)
         price_history_for_optimization = pd.DataFrame({t: get_px_series(t) for t in all_tickers}).ffill()
-        market_rets = price_history_for_optimization.pct_change().fillna(0)
+        market_rets = price_history_for_optimization.pct_change(fill_method=None).fillna(0)
         market_ytd_rets = (1 + market_rets[mask_ytd]).prod() - 1
 
         # Weight-adjusted market portfolio return series: Σ(w_i * r_i,t)
@@ -197,7 +195,7 @@ class StocksService:
                 tk_info = yf.Ticker(ticker).info
                 thematic = get_asset_thematic_metadata(tk_info)
             except:
-                thematic = {'focus': 'N/A', 'niche': 'N/A', 'region_spec': 'Global'}
+                thematic = {'focus': 'N/A', 'niche': 'N/A', 'region_spec': 'N/A'}
             
             # Individual Asset Alpha metrics
             a_rets = market_rets[ticker][mask_ytd] if ticker in market_rets.columns else pd.Series()
@@ -206,23 +204,25 @@ class StocksService:
             # Per-asset TWR YTD (Modified Dietz, accounts for cash flows — investor experience)
             a_ytd_twr = float(asset_ytd_rets[ticker]) if ticker in asset_ytd_rets.index and np.isfinite(asset_ytd_rets[ticker]) else 0.0
 
-            # Classification Logic
-            r2 = a_metrics.get('r_squared', 0.0)
-            te = a_metrics.get('tracking_error', 0.0)
-            rv = a_metrics.get('rel_vol', 1.0)
-            
             # Classification Logic: Industry Standard Institutional Thresholds
             r2 = a_metrics.get('r_squared', 0.0)
             te = a_metrics.get('tracking_error', 0.0)
             rv = a_metrics.get('rel_vol', 1.0)
             
-            # CORE Equity: Highly integrated broad market Beta
-            is_core_equity = (r2 >= 0.80) and (te <= 0.10) and (0.50 <= rv <= 1.35)
-            # CORE Fixed Income: High-quality portfolio stabilizers (Low Volatility)
-            is_core_fixed_income = (rv < 0.45)
-            
-            is_core = is_core_equity or is_core_fixed_income
-            classification = "Core" if is_core else "Satellite"
+            is_core_equity = (0.75 <= rv <= 1.15) and (r2 >= 0.55)
+            is_core_fixed_income = (te < 0.9) and (r2 >= 0.80)
+            is_satellite = (rv >= 1.05) and (te >= 0.03 or r2 < 0.75)
+            is_diversifier = (r2 < 0.55) and (rv < 1.05)
+
+            classification = "N/D"
+            if is_core_equity or is_core_fixed_income:
+                classification = "Core"
+            elif is_satellite: 
+                classification = "Satellite"
+            elif is_diversifier:
+                classification = "Diversifier"
+
+            logger.info(f"{ticker} ({classification}): R-Squared={r2}, TrackingError={te}, RelativeVolatility={rv}")
 
             # Current weight
             w = float(curr_weights.get(ticker, 0.0))
@@ -281,10 +281,13 @@ class StocksService:
         alpha_attribution = self.rebalance_service.calculate_alpha_attribution(asset_metrics_for_attribution)
 
         # ── 5.5 Distribution Core vs Satellite ──────────────────
-        core_sat_dist = {"Core": 0.0, "Satellite": 0.0}
+        core_sat_dist = {}
         for a in assets_list:
-            core_sat_dist[a.classification] += a.weight
-        
+            if a.classification in core_sat_dist:
+                core_sat_dist[a.classification] += a.weight
+            else:
+                core_sat_dist[a.classification] = 0.0
+
         # Normalize to 100% just in case of rounding
         total_w = sum(core_sat_dist.values())
         if total_w > 0:
