@@ -44,6 +44,7 @@ class ProfitabilityInstrumentSerie(BaseModel):
     """A series of profitability data points for an instrument."""
     instrument: str
     type_instrument: str
+    asset_class: str
     data: List[ProfitabilityTrendPoint]
 
 class ProfitabilityEvolutionReport(BaseModel):

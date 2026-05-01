@@ -100,6 +100,7 @@ class PortfolioHoldingsService:
             SELECT 
                 MONTHNAME(DATE_SUB(ri.fecha_transaccion, interval 1 month)) as monthname, 
                 tii.nombre as type_instrument, 
+                tii.clase as clase_tipo_instrumento,
                 ii.nombre as instrument, 
                 ri.rentabilidad as yield,
                 ri.monto as balance 
@@ -127,17 +128,23 @@ class PortfolioHoldingsService:
             if total_bal == 0: return 0
             return (group['yield'] * group['balance']).sum() / total_bal
 
-        wg_avg_df = df.groupby('monthname').apply(calc_weighted).reset_index().rename(columns={0: 'yield'})
+        wg_avg_df = df.groupby('monthname', sort=False).apply(calc_weighted).reset_index().rename(columns={0: 'yield'})
         
         # Series per instrument
         series = []
         for instrument, inst_group in df.groupby('instrument'):
             type_inst = inst_group['type_instrument'].iloc[0]
+            asset_class = inst_group['clase_tipo_instrumento'].iloc[0]
             data_points = [
                 ProfitabilityTrendPoint(month=row['monthname'], yield_value=float(row['yield']))
                 for _, row in inst_group.iterrows()
             ]
-            series.append(ProfitabilityInstrumentSerie(instrument=instrument, type_instrument=type_inst, data=data_points))
+            series.append(ProfitabilityInstrumentSerie(
+                instrument=instrument, 
+                type_instrument=type_inst, 
+                asset_class=asset_class, 
+                data=data_points
+            ))
 
         weighted_average = [
             ProfitabilityTrendPoint(month=row['monthname'], yield_value=float(row['yield']))

@@ -183,12 +183,25 @@ const ProfitabilityEvolution = ({ year, initialCurrency }) => {
   if (!data || !data.series?.length) return <div className="fm-card" style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>No hay datos de rentabilidad por instrumento para {year} ({currency})</div>;
 
   // Transform data for Recharts
+  const SPANISH_MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  const ENGLISH_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  
+  const getMonthIndex = (m) => {
+    if (!m) return 99;
+    const mStr = String(m).charAt(0).toUpperCase() + String(m).slice(1).toLowerCase();
+    const idxEs = SPANISH_MONTHS.indexOf(mStr);
+    if (idxEs !== -1) return idxEs;
+    const idxEn = ENGLISH_MONTHS.indexOf(mStr);
+    if (idxEn !== -1) return idxEn;
+    return 99;
+  };
+
   const months = Array.from(new Set([
     ...data.weighted_average.map(d => d.month),
     ...data.series.flatMap(s => s.data.map(d => d.month))
-  ]));
+  ])).sort((a, b) => getMonthIndex(a) - getMonthIndex(b));
 
-  const chartData = months.map(m => {
+  const chartDataRaw = months.map(m => {
     const point = { month: m };
     data.series.forEach(s => {
       const d = s.data.find(dp => dp.month === m);
@@ -199,9 +212,13 @@ const ProfitabilityEvolution = ({ year, initialCurrency }) => {
     return point;
   });
 
+  const chartData = chartDataRaw.length > 0 
+    ? [{ month: '0', ...data.series.reduce((acc, s) => ({...acc, [s.instrument]: 0}), {}), 'PROMEDIO': 0 }, ...chartDataRaw]
+    : [];
+
   return (
     <div className="fm-card" style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h3 style={{ fontSize: 'var(--font-size-md)', fontWeight: 700, color: 'var(--gray-800)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <BarChart3 size={18} color="var(--blue-500)" />
           Evolución de Rentabilidad ({year})
@@ -215,11 +232,47 @@ const ProfitabilityEvolution = ({ year, initialCurrency }) => {
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={400}>
-        <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottom: '1px dashed #E8EEF8' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-400)', marginRight: 4 }}>Filtros de Clase:</span>
+          {Array.from(new Set(data.series.map(s => s.asset_class))).filter(Boolean).map(ac => (
+            <button
+              key={ac}
+              onClick={() => {
+                const seriesToHide = data.series.filter(s => s.asset_class !== ac).map(s => s.instrument);
+                setHiddenSeries([...seriesToHide, 'PROMEDIO']);
+              }}
+              style={{
+                fontSize: 11, padding: '4px 10px', borderRadius: 12,
+                background: 'var(--blue-50)', color: 'var(--blue-700)',
+                border: '1px solid var(--blue-100)', cursor: 'pointer', fontWeight: 600
+              }}
+            >
+              {ac}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button 
+            onClick={() => setHiddenSeries([])} 
+            style={{ fontSize: 12, color: 'var(--blue-600)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+          >
+            Mostrar todo
+          </button>
+          <button 
+            onClick={() => setHiddenSeries([...data.series.map(s => s.instrument), 'PROMEDIO'])} 
+            style={{ fontSize: 12, color: 'var(--gray-500)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+          >
+            Ocultar todo
+          </button>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={420}>
+        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E8EEF840" vertical={false} />
           <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-          <YAxis tickFormatter={v => `${v.toFixed(1)}%`} tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={45} />
+          <YAxis tickFormatter={v => `${v.toFixed(1)}%`} tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={55} />
           <Tooltip content={<ChartTooltip />} />
           <Legend 
             wrapperStyle={{ fontSize: 11, paddingTop: 20, cursor: 'pointer' }} 
