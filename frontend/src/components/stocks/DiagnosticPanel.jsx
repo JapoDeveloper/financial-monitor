@@ -107,33 +107,28 @@ const DiagnosticPanel = ({ diagnostic, riskFree }) => {
             </div>
           </div>
 
-          {/* Valor Actual */}
-          <div style={{ flex: '1 1 auto' }}>
-            <div style={{ color: 'var(--gray-400)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1, fontSize: 'var(--font-size-xs)' }}>
-              Valor Actual Cartera
-            </div>
-            <div style={{ fontWeight: 900, color: 'var(--blue-900)', fontSize: '1.2rem', marginTop: '4px' }}>
-              ${diagnostic.current_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
-
-          {/* Diferencia */}
+          {/* Valor Actual con Diferencia */}
           {(() => {
             const diff = diagnostic.current_value - diagnostic.total_invested;
             const diffPct = diagnostic.total_invested > 0 ? (diff / diagnostic.total_invested) * 100 : 0;
             const color = diff >= 0 ? 'var(--green-500)' : 'var(--red-500)';
             return (
-              <div style={{ flex: '1 1 auto', textAlign: 'right' }}>
+              <div style={{ flex: '1 1 auto' }}>
                 <div style={{ color: 'var(--gray-400)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1, fontSize: 'var(--font-size-xs)' }}>
-                  Diferencia de Cartera
+                  Valor Actual Cartera
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
-                  <span style={{ fontWeight: 900, color: color, fontSize: '1.25rem' }}>
-                    {diff >= 0 ? '+' : ''}${Math.abs(diff).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+                  <span style={{ fontWeight: 900, color: 'var(--blue-900)', fontSize: '1.2rem', lineHeight: 1 }}>
+                    ${diagnostic.current_value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                  <span style={{ color: color, fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>
-                    ({diffPct >= 0 ? '+' : ''}{diffPct.toFixed(2)}%)
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: `${color}15`, padding: '4px 8px', borderRadius: '6px' }}>
+                    <span style={{ fontWeight: 800, color: color, fontSize: '0.95rem', lineHeight: 1 }}>
+                      {diff >= 0 ? '+' : ''}${Math.abs(diff).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span style={{ color: color, fontWeight: 700, fontSize: '0.85rem', lineHeight: 1 }}>
+                      ({diffPct >= 0 ? '+' : ''}{diffPct.toFixed(2)}%)
+                    </span>
+                  </div>
                 </div>
               </div>
             );
