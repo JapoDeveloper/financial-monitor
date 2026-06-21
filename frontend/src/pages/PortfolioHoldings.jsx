@@ -155,11 +155,146 @@ const PortfolioHoldings = () => {
     queryFn: getHoldings,
   });
 
+  const [rebalanceMode, setRebalanceMode] = useState('compra-excedente'); // 'total', 'compra-total', 'compra-excedente'
+
   if (isLoading) return (
     <div className="fm-spinner empty-panel">
       <Loader2 size={40} style={{ animation: 'spin 1s linear infinite', color: 'var(--blue-500)' }} />
     </div>
   );
+
+  // ─── Simulador de Rebalanceo de Renta Variable ───
+  // Obtener la tasa de cambio USD/DOP a partir de la distribución de monedas
+  const usdMoneda = data?.distribucion_moneda?.find(m => m.nombre === 'USD');
+  const usdRate = (usdMoneda && usdMoneda.total_valor_nominal > 0)
+    ? (usdMoneda.total_valor / usdMoneda.total_valor_nominal)
+    : 58.0;
+
+  const totalRVDOP = data?.distribucion_clase?.find(c => c.nombre?.toLowerCase() === 'renta variable')?.total_valor || 0;
+  const totalRV = totalRVDOP / usdRate; // Convertimos todo el total de Renta Variable a USD
+  
+  // Encontrar el instrumento de Cash / Equivalents
+  const cashInstrument = data?.renta_variable?.find(item => item.instrumento === 'Cash / Equivalents');
+  const cashTargetWeight = cashInstrument?.meta_objetivo || 0.05;
+  const cashActualWeight = cashInstrument?.valor_actual || 0.0;
+  const cashActualValue = totalRV * cashActualWeight;
+
+  // Lógica de simulación
+  let simulatedAssets = [];
+  if (data?.renta_variable) {
+    const rawAssets = data.renta_variable;
+    
+    // Determinar efectivo a distribuir
+    let cashToSpend = 0;
+    if (rebalanceMode === 'compra-total') {
+      cashToSpend = cashActualValue;
+    } else if (rebalanceMode === 'compra-excedente') {
+      cashToSpend = Math.max(0, cashActualValue - totalRV * cashTargetWeight);
+    }
+
+    if (rebalanceMode === 'total') {
+      // Rebalanceo Total: Compras y Ventas. El efectivo queda exactamente en su meta_objetivo.
+      simulatedAssets = rawAssets.map(item => {
+        const targetWeight = item.meta_objetivo;
+        const targetValue = totalRV * targetWeight;
+        const currentValue = totalRV * item.valor_actual;
+        const deltaValue = targetValue - currentValue;
+        
+        return {
+          instrumento: item.instrumento,
+          valorActual: currentValue,
+          pesoActual: item.valor_actual,
+          deltaValue: deltaValue,
+          pesoProyectado: targetWeight,
+          pesoMeta: targetWeight
+        };
+      });
+    } else {
+      // Modos Solo Compra: 'compra-total' o 'compra-excedente'
+      // 1. Definir pesos objetivos de referencia
+      let refTargetWeights = {};
+      if (rebalanceMode === 'compra-total') {
+        // Cash queda en 0. Los demás activos se escalan para sumar 1.
+        rawAssets.forEach(item => {
+          if (item.instrumento === 'Cash / Equivalents') {
+            refTargetWeights[item.instrumento] = 0;
+          } else {
+            refTargetWeights[item.instrumento] = item.meta_objetivo / (1 - cashTargetWeight);
+          }
+        });
+      } else {
+        // Cash queda en su peso meta original. Los demás activos en sus pesos metas originales.
+        rawAssets.forEach(item => {
+          refTargetWeights[item.instrumento] = item.meta_objetivo;
+        });
+      }
+
+      // 2. Calcular déficits para los activos que no son Cash / Equivalents
+      const deficits = [];
+      let totalDeficit = 0;
+      rawAssets.forEach(item => {
+        if (item.instrumento !== 'Cash / Equivalents') {
+          const targetValue = totalRV * refTargetWeights[item.instrumento];
+          const currentValue = totalRV * item.valor_actual;
+          const deficit = Math.max(0, targetValue - currentValue);
+          deficits.push({ instrumento: item.instrumento, currentValue, targetValue, deficit, refWeight: refTargetWeights[item.instrumento] });
+          totalDeficit += deficit;
+        }
+      });
+
+      // 3. Distribuir el efectivo (water-filling/proportional-deficit)
+      const allocations = {};
+      if (cashToSpend < totalDeficit) {
+        // Caja insuficiente, distribuir proporcional al déficit
+        deficits.forEach(d => {
+          allocations[d.instrumento] = totalDeficit > 0 ? cashToSpend * (d.deficit / totalDeficit) : 0;
+        });
+      } else {
+        // Caja suficiente, cubrir todo el déficit
+        const remainingCash = cashToSpend - totalDeficit;
+        deficits.forEach(d => {
+          // El remanente se distribuye proporcional a los pesos meta proyectados
+          const scaleFactor = rebalanceMode === 'compra-total' ? 1 : (1 - cashTargetWeight);
+          const weightFactor = d.refWeight / scaleFactor;
+          allocations[d.instrumento] = d.deficit + remainingCash * weightFactor;
+        });
+      }
+
+      // 4. Crear los registros proyectados
+      simulatedAssets = rawAssets.map(item => {
+        const currentValue = totalRV * item.valor_actual;
+        if (item.instrumento === 'Cash / Equivalents') {
+          const projectedValue = cashActualValue - cashToSpend;
+          const projectedWeight = projectedValue / totalRV;
+          return {
+            instrumento: item.instrumento,
+            valorActual: currentValue,
+            pesoActual: item.valor_actual,
+            deltaValue: -cashToSpend,
+            pesoProyectado: projectedWeight,
+            pesoMeta: item.meta_objetivo
+          };
+        } else {
+          const alloc = allocations[item.instrumento] || 0;
+          const projectedValue = currentValue + alloc;
+          const projectedWeight = projectedValue / totalRV;
+          return {
+            instrumento: item.instrumento,
+            valorActual: currentValue,
+            pesoActual: item.valor_actual,
+            deltaValue: alloc,
+            pesoProyectado: projectedWeight,
+            pesoMeta: item.meta_objetivo
+          };
+        }
+      });
+    }
+  }
+
+  // Filtrar activos que necesiten ser rebalanceados (umbral de transacción > $0.01 DOP) y ordenar por monto absoluto de transacción
+  const filteredSimulatedAssets = simulatedAssets
+    .filter(item => Math.abs(item.deltaValue) >= 0.01)
+    .sort((a, b) => Math.abs(b.deltaValue) - Math.abs(a.deltaValue));
   
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 20px' }}>
@@ -328,6 +463,128 @@ const PortfolioHoldings = () => {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* ── Simulador de Rebalanceo de Renta Variable ── */}
+      <div className="fm-card section-spacing">
+        <div className="rebalance-panel-header">
+          <h3 className="section-title">Simulador de Rebalanceo — Renta Variable</h3>
+          
+          <div className="rebalance-selector-container">
+            <button
+              onClick={() => setRebalanceMode('compra-excedente')}
+              className={`rebalance-selector-btn ${rebalanceMode === 'compra-excedente' ? 'rebalance-selector-btn--active' : ''}`}
+            >
+              Solo Compra (Excedente)
+            </button>
+            <button
+              onClick={() => setRebalanceMode('compra-total')}
+              className={`rebalance-selector-btn ${rebalanceMode === 'compra-total' ? 'rebalance-selector-btn--active' : ''}`}
+            >
+              Solo Compra (Todo el Cash)
+            </button>
+            <button
+              onClick={() => setRebalanceMode('total')}
+              className={`rebalance-selector-btn ${rebalanceMode === 'total' ? 'rebalance-selector-btn--active' : ''}`}
+            >
+              Rebalanceo Total
+            </button>
+          </div>
+        </div>
+
+        {/* Info Banner explaining the selected mode */}
+        <div className="rebalance-info-card animate-fade-in">
+          {rebalanceMode === 'compra-excedente' && (
+            <p>
+              <strong>Modalidad: Solo Compra (Efectivo Excedente).</strong> Se utiliza únicamente el efectivo de
+              {' '}<code>Cash / Equivalents</code> que supera su peso meta de <strong>{(cashTargetWeight * 100).toFixed(1)}%</strong>
+              {' '} (equivalente a <strong>{fmtCurrency(totalRV * cashTargetWeight, 'USD')}</strong> de reserva mínima).
+              Se compra proporcionalmente los activos subponderados sin vender ningún activo.
+              Efectivo a distribuir: <strong>{fmtCurrency(Math.max(0, cashActualValue - totalRV * cashTargetWeight), 'USD')}</strong>.
+            </p>
+          )}
+          {rebalanceMode === 'compra-total' && (
+            <p>
+              <strong>Modalidad: Solo Compra (Todo el Cash).</strong> Se distribuye la totalidad del efectivo disponible
+              {' '}en <code>Cash / Equivalents</code> (<strong>{fmtCurrency(cashActualValue, 'USD')}</strong>)
+              para comprar proporcionalmente los activos subponderados sin vender ningún activo. El peso proyectado de caja será <strong>0.0%</strong>.
+            </p>
+          )}
+          {rebalanceMode === 'total' && (
+            <p>
+              <strong>Modalidad: Rebalanceo Total.</strong> Ajuste institucional completo.
+              Se venden los activos sobreponderados y se compran los subponderados.
+              La reserva de <code>Cash / Equivalents</code> se ajusta exactamente a su peso meta de <strong>{(cashTargetWeight * 100).toFixed(1)}%</strong>
+              {' '} (<strong>{fmtCurrency(totalRV * cashTargetWeight, 'USD')}</strong>).
+            </p>
+          )}
+        </div>
+
+        {/* Simulación Table */}
+        {filteredSimulatedAssets.length > 0 ? (
+          <div className="rebalance-table-container animate-fade-in">
+            <table className="rebalance-table">
+              <thead>
+                <tr>
+                  <th>Activo</th>
+                  <th className="col-right">Valor Actual</th>
+                  <th className="col-right">Peso Actual (%)</th>
+                  <th className="col-center">Transacción Sugerida</th>
+                  <th className="col-right">Peso Proyectado (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSimulatedAssets.map((item) => {
+                  const isBuy = item.deltaValue > 0.01;
+                  const isSell = item.deltaValue < -0.01;
+                  return (
+                    <tr key={item.instrumento}>
+                      <td className="fw-semibold">{item.instrumento}</td>
+                      <td className="col-right">{fmtCurrency(item.valorActual, 'USD')}</td>
+                      <td className="col-right">{(item.pesoActual * 100).toFixed(2)}%</td>
+                      <td className="col-center">
+                        {isBuy && (
+                          <span className="badge-transaction badge-transaction--buy">
+                            Compra: +{fmtCurrency(item.deltaValue, 'USD')}
+                          </span>
+                        )}
+                        {isSell && (
+                          <span className="badge-transaction badge-transaction--sell">
+                            Venta: -{fmtCurrency(Math.abs(item.deltaValue), 'USD')}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`col-right fw-bold ${Math.abs(item.pesoProyectado - item.pesoMeta) <= 0.01 ? 'text-positive' : 'text-primary'}`}>
+                        {(item.pesoProyectado * 100).toFixed(2)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p>El portafolio se encuentra completamente al día con los pesos meta para esta modalidad.</p>
+          </div>
+        )}
+
+        {/* Simulación Summary Footer */}
+        <div className="rebalance-summary">
+          <div className="rebalance-summary-item">
+            <span className="rebalance-summary-label">Total Sub-portafolio RV:</span>
+            <span>{fmtCurrency(totalRV, 'USD')}</span>
+          </div>
+          <div className="rebalance-summary-item">
+            <span className="rebalance-summary-label">Efectivo Post-Rebalanceo:</span>
+            <span>
+              {fmtCurrency(
+                (simulatedAssets.find(item => item.instrumento === 'Cash / Equivalents')?.pesoProyectado || 0) * totalRV,
+                'USD'
+              )}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
