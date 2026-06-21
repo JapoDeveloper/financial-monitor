@@ -38,7 +38,9 @@ const AssetHistoryChart = ({ ticker }) => {
         date: h.date,
         price: h.price,
         buyPrice: buyTx ? buyTx.price : null,
+        buyQty: buyTx && buyTx.price > 0 ? buyTx.monto / buyTx.price : null,
         sellPrice: sellTx ? sellTx.price : null,
+        sellQty: sellTx && sellTx.price > 0 ? sellTx.monto / sellTx.price : null,
       };
     });
   }, [data]);
@@ -156,17 +158,57 @@ const AssetHistoryChart = ({ ticker }) => {
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip 
-              contentStyle={TOOLTIP_STYLE} 
-              labelStyle={{ fontWeight: 'bold', color: 'var(--blue-800)', marginBottom: '8px' }} 
-              itemStyle={{ fontSize: '13px', padding: '2px 0' }}
-              labelFormatter={(label) => new Date(label).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-              formatter={(value, name) => {
-                if (value === null || value === undefined || isNaN(Number(value))) return null;
-                return [`$${Number(value).toFixed(2)}`, name];
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const point = payload[0]?.payload;
+                if (!point) return null;
+                const dateStr = new Date(label).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+                return (
+                  <div className="asset-chart-tooltip">
+                    <p className="asset-chart-tooltip__date">{dateStr}</p>
+                    <div className="asset-chart-tooltip__row">
+                      <span className="asset-chart-tooltip__dot asset-chart-tooltip__dot--market" />
+                      <span className="asset-chart-tooltip__label">Precio Mercado</span>
+                      <span className="asset-chart-tooltip__value">${point.price?.toFixed(2)}</span>
+                    </div>
+                    {point.buyPrice != null && (
+                      <>
+                        <div className="asset-chart-tooltip__row">
+                          <span className="asset-chart-tooltip__dot asset-chart-tooltip__dot--buy" />
+                          <span className="asset-chart-tooltip__label">Precio de Compra</span>
+                          <span className="asset-chart-tooltip__value">${point.buyPrice.toFixed(2)}</span>
+                        </div>
+                        {point.buyQty != null && (
+                          <div className="asset-chart-tooltip__row asset-chart-tooltip__row--detail">
+                            <span className="asset-chart-tooltip__label">Cantidad Comprada</span>
+                            <span className="asset-chart-tooltip__value asset-chart-tooltip__value--qty">
+                              {point.buyQty.toFixed(4)} acciones
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {point.sellPrice != null && (
+                      <>
+                        <div className="asset-chart-tooltip__row">
+                          <span className="asset-chart-tooltip__dot asset-chart-tooltip__dot--sell" />
+                          <span className="asset-chart-tooltip__label">Precio de Venta</span>
+                          <span className="asset-chart-tooltip__value">${point.sellPrice.toFixed(2)}</span>
+                        </div>
+                        {point.sellQty != null && (
+                          <div className="asset-chart-tooltip__row asset-chart-tooltip__row--detail">
+                            <span className="asset-chart-tooltip__label">Cantidad Vendida</span>
+                            <span className="asset-chart-tooltip__value asset-chart-tooltip__value--qty">
+                              {point.sellQty.toFixed(4)} acciones
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
               }}
-              // Filter out items that shouldn't be in the tooltip
-              itemSorter={(item) => (item.name === 'Precio Mercado' ? -1 : 1)}
             />
             <Legend wrapperStyle={{ paddingTop: '20px' }} />
             
