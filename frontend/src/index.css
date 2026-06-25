@@ -876,6 +876,10 @@ html, body {
   background: var(--red-500);
 }
 
+.asset-chart-tooltip__dot--dividend {
+  background: var(--amber-500);
+}
+
 .asset-chart-tooltip__label {
   color: var(--gray-600);
   flex: 1;

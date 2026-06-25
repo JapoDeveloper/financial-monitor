@@ -34,6 +34,7 @@ const AssetHistoryChart = ({ ticker }) => {
     return history.map(h => {
       const buyTx = transactions.find(t => t.date === h.date && t.type === 'buy');
       const sellTx = transactions.find(t => t.date === h.date && t.type === 'sell');
+      const divTx = transactions.find(t => t.date === h.date && t.type === 'dividend');
       return {
         date: h.date,
         price: h.price,
@@ -41,6 +42,8 @@ const AssetHistoryChart = ({ ticker }) => {
         buyQty: buyTx && buyTx.price > 0 ? buyTx.monto / buyTx.price : null,
         sellPrice: sellTx ? sellTx.price : null,
         sellQty: sellTx && sellTx.price > 0 ? sellTx.monto / sellTx.price : null,
+        dividend: divTx ? divTx.monto : null,
+        dividendPrice: divTx ? h.price : null, // Precio de mercado el día del dividendo
       };
     });
   }, [data]);
@@ -206,6 +209,13 @@ const AssetHistoryChart = ({ ticker }) => {
                         )}
                       </>
                     )}
+                    {point.dividend != null && (
+                      <div className="asset-chart-tooltip__row asset-chart-tooltip__row--detail">
+                        <span className="asset-chart-tooltip__dot asset-chart-tooltip__dot--dividend" />
+                        <span className="asset-chart-tooltip__label">Dividendo</span>
+                        <span className="asset-chart-tooltip__value">${point.dividend.toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 );
               }}
@@ -247,16 +257,23 @@ const AssetHistoryChart = ({ ticker }) => {
             />
             <Scatter 
               dataKey="buyPrice" 
-              name="Precio de Compra" 
+              name="Compra" 
               fill="var(--green-500)" 
               shape="circle" 
               isAnimationActive={false}
             />
             <Scatter 
               dataKey="sellPrice" 
-              name="Precio de Venta" 
+              name="Venta" 
               fill="var(--red-500)" 
               shape="wye" 
+              isAnimationActive={false}
+            />
+            <Scatter 
+              dataKey="dividendPrice" 
+              name="Dividendo" 
+              fill="var(--amber-500)" 
+              shape="circle" 
               isAnimationActive={false}
             />
           </ComposedChart>
