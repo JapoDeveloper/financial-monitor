@@ -316,7 +316,8 @@ class StocksService:
                     normalized = normalized.ffill().fillna(100.0)
                     
                     for d, row in normalized.iterrows():
-                        point = {"date": d.strftime("%Y-%m-%d")}
+                        # Return datetime with UTC timezone for proper frontend timezone handling
+                        point = {"date": d.to_pydatetime().replace(tzinfo=None)}
                         for ticker, val in row.items():
                             point[ticker] = sanitize_float(val)
                         portfolio_history_data.append(point)
@@ -404,9 +405,9 @@ class StocksService:
 
         price_col = get_asset_price_label(hist)
         
-        # Prepare history points
+        # Prepare history points - return datetime instead of date for timezone awareness
         history_points = [
-            PricePoint(date=d.to_pydatetime().date(), price=float(p))
+            PricePoint(date=d.to_pydatetime().replace(tzinfo=None), price=float(p))
             for d, p in zip(hist.index, hist[price_col])
         ]
 
@@ -417,21 +418,21 @@ class StocksService:
             if row['dividendos'] > 0:
                 # Agregar transacción de dividendo
                 transactions.append(TransactionMarker(
-                    date=row.fecha_transaccion.date(),
+                    date=row.fecha_transaccion.to_pydatetime().replace(tzinfo=None),
                     price=0.0,  # Los dividendos no tienen precio de transacción
                     type='dividend',
                     monto=float(row['dividendos'])
                 ))
             if row['aporte'] > 0:
                 transactions.append(TransactionMarker(
-                    date=row.fecha_transaccion.date(),
+                    date=row.fecha_transaccion.to_pydatetime().replace(tzinfo=None),
                     price=row.precio_compra,
                     type='buy',
                     monto=float(row['aporte'])
                 ))
             if row['retiro'] > 0:
                 transactions.append(TransactionMarker(
-                    date=row.fecha_transaccion.date(),
+                    date=row.fecha_transaccion.to_pydatetime().replace(tzinfo=None),
                     price=row.precio_venta,
                     type='sell',
                     monto=float(row['retiro'])

@@ -75,13 +75,13 @@ class StocksDashboardResponse(BaseModel):
     core_satellite_distribution: Dict[str, float] = Field(default_factory=dict)
 
 class TransactionMarker(BaseModel):
-    date: date
+    date: datetime  # Changed from date to datetime for timezone awareness
     price: float
     type: str  # 'buy', 'sell', o 'dividend'
     monto: float
 
 class PricePoint(BaseModel):
-    date: date
+    date: datetime  # Changed from date to datetime for timezone awareness
     price: float
 
 class AssetHistoryResponse(BaseModel):
