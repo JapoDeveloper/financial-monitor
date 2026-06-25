@@ -422,14 +422,19 @@ class StocksService:
                     type='dividend',
                     monto=float(row['dividendos'])
                 ))
-            else:
-                t_type = 'buy' if row.aporte > 0 else 'sell'
-                monto = row.aporte if row.aporte > 0 else row.retiro
+            if row['aporte'] > 0:
                 transactions.append(TransactionMarker(
                     date=row.fecha_transaccion.date(),
-                    price=float(row.precio_compra if t_type == 'buy' else row.precio_venta),
-                    type=t_type,
-                    monto=float(monto)
+                    price=row.precio_compra,
+                    type='buy',
+                    monto=float(row['aporte'])
+                ))
+            if row['retiro'] > 0:
+                transactions.append(TransactionMarker(
+                    date=row.fecha_transaccion.date(),
+                    price=row.precio_venta,
+                    type='sell',
+                    monto=float(row['retiro'])
                 ))
 
         avg_buy_price = calculate_weighted_average_price(asset_ops)
