@@ -77,7 +77,7 @@ class StocksDashboardResponse(BaseModel):
 class TransactionMarker(BaseModel):
     date: date
     price: float
-    type: str  # 'buy' or 'sell'
+    type: str  # 'buy', 'sell', o 'dividend'
     monto: float
 
 class PricePoint(BaseModel):

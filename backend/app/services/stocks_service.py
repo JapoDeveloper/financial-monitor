@@ -410,17 +410,27 @@ class StocksService:
             for d, p in zip(hist.index, hist[price_col])
         ]
 
-        # Prepare transactions
+        # Prepare unified transactions (all types in single list)
         transactions = []
+        
         for _, row in asset_ops.iterrows():
-            t_type = 'buy' if row.aporte > 0 else 'sell'
-            monto = row.aporte if row.aporte > 0 else row.retiro
-            transactions.append(TransactionMarker(
-                date=row.fecha_transaccion.date(),
-                price=float(row.precio_compra if t_type == 'buy' else row.precio_venta),
-                type=t_type,
-                monto=float(monto)
-            ))
+            if row['dividendos'] > 0:
+                # Agregar transacción de dividendo
+                transactions.append(TransactionMarker(
+                    date=row.fecha_transaccion.date(),
+                    price=0.0,  # Los dividendos no tienen precio de transacción
+                    type='dividend',
+                    monto=float(row['dividendos'])
+                ))
+            else:
+                t_type = 'buy' if row.aporte > 0 else 'sell'
+                monto = row.aporte if row.aporte > 0 else row.retiro
+                transactions.append(TransactionMarker(
+                    date=row.fecha_transaccion.date(),
+                    price=float(row.precio_compra if t_type == 'buy' else row.precio_venta),
+                    type=t_type,
+                    monto=float(monto)
+                ))
 
         avg_buy_price = calculate_weighted_average_price(asset_ops)
         curr_price = float(hist[price_col].iloc[-1])
@@ -436,7 +446,7 @@ class StocksService:
         return AssetHistoryResponse(
             ticker=ticker,
             history=history_points,
-            transactions=transactions,
+            transactions=transactions,  # Unificado: incluye buy, sell y dividend
             average_buy_price=float(avg_buy_price),
             current_price=curr_price,
             price_diff_perc=float(price_diff_perc),
