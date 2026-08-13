@@ -25,7 +25,11 @@ def calculate_modified_dietz(df: pd.DataFrame) -> pd.DataFrame:
     g['flujo_neto'] = g['aportes'] - g['retiros']
     
     # Gain = End Value - (Initial Value + Net Cash Flow)
-    g['ganancia_mercado'] = g['valor_cartera'] - g['flujo_neto'] - g['v_inicial']
+    g['ganancia_mercado'] = np.where(
+    g['valor_cartera'] != g['v_inicial'],
+    g['valor_cartera'] - g['flujo_neto'] - g['v_inicial'],
+    0
+)
     
     # Capital Promedio = Initial Value + Weighted Cash Flows
     g['capital_promedio'] = g['v_inicial'] + g['flujo_ponderado']

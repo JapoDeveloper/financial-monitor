@@ -14,7 +14,6 @@ class PortfolioHoldingsService:
         self.db = db
 
     async def get_holdings(self, user_id: int, base_currency: str = 'DOP') -> HoldingsReport:
-        # Replicating notebook query logic for holdings data
         query_str = f'''
             select
                 v.alias_institucion as institucion,
@@ -109,8 +108,7 @@ class PortfolioHoldingsService:
             JOIN wimm.moneda m ON m.id = i.moneda_id 
             JOIN wimm.instrumento_inversion ii ON ii.id = i.instrumento_inversion_id 
             JOIN wimm.tipo_instrumento_inversion tii on tii.id = ii.tipo_instrumento_inversion_id
-            WHERE ri.activo = 1 
-              AND i.activa = 1
+            WHERE ri.activo = 1
               AND i.usuario_id = {user_id}  
               AND ri.tipo_operacion = 'C' 
               AND m.codigo = '{currency}'

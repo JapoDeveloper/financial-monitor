@@ -26,7 +26,7 @@ class StocksService:
         self.RISK_FREE_SYMBOL = '^TNX'
 
     async def get_stocks_dashboard(self, user_id: int, macro_regime_override: Optional[str] = None) -> StocksDashboardResponse:
-        df_transacciones = await self.repo.get_stocks_transactions(user_id)
+        df_transacciones = await self.repo.get_stocks_transactions(user_id, active_investment=True)
         if not df_transacciones.empty:
             # Ensure numeric columns are floats to avoid Decimal/float multiplication errors
             numeric_cols = ['aporte', 'retiro', 'dividendos', 'precio_compra', 'precio_venta', 'cuotas_participacion']
@@ -375,7 +375,7 @@ class StocksService:
         )
 
     async def get_asset_history(self, user_id: int, ticker: str, period: Optional[str] = None) -> AssetHistoryResponse:
-        df_transacciones = await self.repo.get_stocks_transactions(user_id)
+        df_transacciones = await self.repo.get_stocks_transactions(user_id, active_investment=False)
         if not df_transacciones.empty:
             # Ensure numeric columns are floats to avoid Decimal/float multiplication errors
             numeric_cols = ['aporte', 'retiro', 'dividendos', 'precio_compra', 'precio_venta', 'cuotas_participacion']

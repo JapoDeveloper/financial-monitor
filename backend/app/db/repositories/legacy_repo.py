@@ -16,7 +16,6 @@ class LegacyWimmRepository:
     async def get_portfolio_evolution_data(self, user_id: int, year: int) -> pd.DataFrame:
         """
         Retrieves raw portfolio evolution data (closings and flows) for a given year.
-        Ported from 'Seguimiento anual del portafolio.ipynb'.
         """
         query = text("""
             SELECT 
@@ -140,7 +139,7 @@ class LegacyWimmRepository:
         """)
         await self.db.execute(query, {"src": src, "dst": dst, "val": value, "dt": last_updated})
 
-    async def get_stocks_transactions(self, user_id: int) -> pd.DataFrame:
+    async def get_stocks_transactions(self, user_id: int, active_investment: bool = True) -> pd.DataFrame:
         """
         Retrieves transaction history for active stock investments (Variable Income).
         Criteria: i.activa = 1 AND tii.sub_clase LIKE '%Activos%'
@@ -169,7 +168,7 @@ class LegacyWimmRepository:
                 tii.id = ii.tipo_instrumento_inversion_id
             WHERE
                 i.usuario_id = :user_id
-                AND i.activa = 1
+                AND i.activa = :active
                 AND tii.sub_clase LIKE '%Activos%'
                 AND ri.activo = 1
                 AND ri.tipo_operacion IN ('A', 'R', 'D')
@@ -180,7 +179,7 @@ class LegacyWimmRepository:
                 ri.fecha_transaccion ASC
         ''')
         
-        result = await self.db.execute(query, {"user_id": user_id})
+        result = await self.db.execute(query, {"user_id": user_id, "active": active_investment})
         rows = result.fetchall()
         
         if not rows:
