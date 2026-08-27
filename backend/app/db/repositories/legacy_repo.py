@@ -157,7 +157,8 @@ class LegacyWimmRepository:
                 SUM(CASE WHEN ri.tipo_operacion = 'A' THEN ri.cuotas_participacion 
                          WHEN ri.tipo_operacion = 'R' THEN ri.cuotas_participacion * -1 
                          ELSE 0 END) AS cuotas_participacion,
-                i.id AS inversion_id
+                i.id AS inversion_id,
+                i.activa
             FROM
                 wimm.inversion i
             JOIN wimm.registro_inversion ri ON
@@ -168,7 +169,6 @@ class LegacyWimmRepository:
                 tii.id = ii.tipo_instrumento_inversion_id
             WHERE
                 i.usuario_id = :user_id
-                AND i.activa = :active
                 AND tii.sub_clase LIKE '%Activos%'
                 AND ri.activo = 1
                 AND ri.tipo_operacion IN ('A', 'R', 'D')
@@ -179,12 +179,14 @@ class LegacyWimmRepository:
                 ri.fecha_transaccion ASC
         ''')
         
-        result = await self.db.execute(query, {"user_id": user_id, "active": active_investment})
+        result = await self.db.execute(query, {"user_id": user_id})
         rows = result.fetchall()
         
         if not rows:
             return pd.DataFrame()
             
         df = pd.DataFrame(rows, columns=list(result.keys()))
+        if active_investment:
+            df = df[df['activa'] == True]
         df['fecha_transaccion'] = pd.to_datetime(df['fecha_transaccion'])
         return df
