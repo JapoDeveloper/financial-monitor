@@ -382,7 +382,7 @@ class StocksService:
             for col in numeric_cols:
                 if col in df_transacciones.columns:
                     df_transacciones[col] = pd.to_numeric(df_transacciones[col], errors='coerce').fillna(0).astype(float)
-        
+
         asset_ops = df_transacciones[df_transacciones['nombre_corto'] == ticker]
         
         if asset_ops.empty:
@@ -427,7 +427,7 @@ class StocksService:
                 transactions.append(TransactionMarker(
                     date=row.fecha_transaccion.to_pydatetime().replace(tzinfo=None),
                     price=row.precio_compra,
-                    type='buy',
+                    type='buy' if row.reinversion == False else 'reinvestment',
                     monto=float(row['aporte'])
                 ))
             if row['retiro'] > 0:

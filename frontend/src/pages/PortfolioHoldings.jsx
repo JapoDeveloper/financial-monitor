@@ -281,7 +281,7 @@ const PortfolioHoldings = () => {
   const cashInstrument = data?.renta_variable?.find(
     (item) => item.instrumento === "Cash / Equivalents",
   );
-  const cashTargetWeight = cashInstrument?.meta_objetivo || 0.05;
+  const cashTargetWeight = cashInstrument?.meta_objetivo || 0.01;
   const cashActualWeight = cashInstrument?.valor_actual || 0.0;
   const cashActualValue = totalRV * cashActualWeight;
 

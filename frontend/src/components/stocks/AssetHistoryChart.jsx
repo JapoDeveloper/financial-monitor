@@ -50,6 +50,9 @@ const AssetHistoryChart = ({ ticker }) => {
       const divTx = transactions.find(
         (t) => t.date === h.date && t.type === "dividend",
       );
+      const reInvTx = transactions.find(
+        (t) => t.date === h.date && t.type === "reinvestment",
+      );
       return {
         date: h.date,
         price: h.price,
@@ -59,7 +62,10 @@ const AssetHistoryChart = ({ ticker }) => {
         sellQty:
           sellTx && sellTx.price > 0 ? sellTx.monto / sellTx.price : null,
         dividend: divTx ? divTx.monto : null,
-        dividendPrice: divTx ? h.price : null, // Precio de mercado el día del dividendo
+        dividendPrice: divTx ? h.price : null, // Precio de mercado el día del dividendo,
+        reInvPrice: reInvTx ? reInvTx.price : null,
+        reInvQty:
+          reInvTx && reInvTx.price > 0 ? reInvTx.monto / reInvTx.price : null,
       };
     });
   }, [data]);
@@ -288,6 +294,29 @@ const AssetHistoryChart = ({ ticker }) => {
                         )}
                       </>
                     )}
+                    {point.reInvPrice != null && (
+                      <>
+                        <div className="asset-chart-tooltip__row">
+                          <span className="asset-chart-tooltip__dot asset-chart-tooltip__dot--reinvestment" />
+                          <span className="asset-chart-tooltip__label">
+                            Precio de Reinversion
+                          </span>
+                          <span className="asset-chart-tooltip__value">
+                            ${point.reInvPrice.toFixed(2)}
+                          </span>
+                        </div>
+                        {point.reInvQty != null && (
+                          <div className="asset-chart-tooltip__row asset-chart-tooltip__row--detail">
+                            <span className="asset-chart-tooltip__label">
+                              Cantidad Reinvertida
+                            </span>
+                            <span className="asset-chart-tooltip__value asset-chart-tooltip__value--qty">
+                              {point.reInvQty.toFixed(4)} acciones
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
                     {point.sellPrice != null && (
                       <>
                         <div className="asset-chart-tooltip__row">
@@ -365,6 +394,13 @@ const AssetHistoryChart = ({ ticker }) => {
               dataKey="buyPrice"
               name="Compra"
               fill="var(--green-500)"
+              shape="circle"
+              isAnimationActive={false}
+            />
+            <Scatter
+              dataKey="reInvPrice"
+              name="Reinversion"
+              fill="var(--blue-500)"
               shape="circle"
               isAnimationActive={false}
             />

@@ -189,4 +189,5 @@ class LegacyWimmRepository:
         if active_investment:
             df = df[df['activa'] == True]
         df['fecha_transaccion'] = pd.to_datetime(df['fecha_transaccion'])
+        df['reinversion'] = np.isclose(df['aporte'].astype(float), df['dividendos'].astype(float), equal_nan=False)
         return df
